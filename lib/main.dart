@@ -81,7 +81,6 @@ class SanadApp extends StatelessWidget {
     return MaterialApp(
       title: 'سَنَد - SANAD',
       debugShowCheckedModeBanner: false,
-      // دعم الاتجاه من اليمين إلى اليسار تلقائياً
       builder: (context, child) {
         return Directionality(
           textDirection: TextDirection.rtl,
@@ -102,11 +101,11 @@ class SanadApp extends StatelessWidget {
         '/': (_) => const AuthLocalScreen(),
         '/preview': (_) => const PreviewScreen(),
         '/home': (_) => const ElderHomeScreen(),
-        '/sos': (_) => const SosScreen(),
-        '/dashboard': (_) => const CaregiverDashboard(),
-        '/meds': (_) => const MedsScreen(),
-        '/voice': (_) => const VoiceAssistantScreen(),
-        '/settings': (_) => const SettingsScreen(),
+        '/sos': (_) => SosScreen(),
+        '/dashboard': (_) => CaregiverDashboard(),
+        '/meds': (_) => MedsScreen(),
+        '/voice': (_) => VoiceAssistantScreen(),
+        '/settings': (_) => SettingsScreen(),
       },
     );
   }
@@ -214,7 +213,6 @@ class _AuthLocalScreenState extends State<AuthLocalScreen> {
     );
   }
 }
-
 /* ---------------------------
    2. شاشة المعاينة Preview
    --------------------------- */
@@ -321,16 +319,16 @@ class _PhonePreviewState extends State<PhonePreview> {
     Widget screen;
     switch (current) {
       case 'sos':
-        screen = const SosScreen();
+        screen = SosScreen();
         break;
       case 'dashboard':
-        screen = const CaregiverDashboard();
+        screen = CaregiverDashboard();
         break;
       case 'meds':
-        screen = const MedsScreen();
+        screen = MedsScreen();
         break;
       case 'voice':
-        screen = const VoiceAssistantScreen();
+        screen = VoiceAssistantScreen();
         break;
       case 'home':
       default:
@@ -583,7 +581,9 @@ class _ElderHomeScreenState extends State<ElderHomeScreen> {
     );
   }
 }
-
+/* ---------------------------
+   5. الويدجت المساعدة لأزرار الرئيسية
+   --------------------------- */
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -613,15 +613,302 @@ class _ActionButton extends StatelessWidget {
         children: [
           Icon(icon, size: 28, color: color),
           const SizedBox(height: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.bold,
+          Text(label, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+/* ---------------------------
+   6. شاشة الطوارئ SOS Screen
+   --------------------------- */
+class SosScreen extends StatefulWidget {
+  const SosScreen({super.key});
+  @override
+  State<SosScreen> createState() => _SosScreenState();
+}
+
+class _SosScreenState extends State<SosScreen> {
+  int _count = 3;
+  List<bool> steps = [false, false, false];
+  bool _sent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _count = 3;
+    steps = [false, false, false];
+    _sent = false;
+
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() => _count -= 1);
+
+      if (_count == 2) steps[0] = true;
+      if (_count == 1) steps[1] = true;
+      if (_count <= 0) {
+        steps[2] = true;
+        _sendSos();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  void _sendSos() {
+    setState(() => _sent = true);
+    AppState.visits.add(
+      Visit(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        elderName: AppState.userName ?? 'المسن',
+        caregiverName: 'النظام الآلي',
+        startAt: DateTime.now(),
+        type: 'استغاثة طارئة',
+        status: 'تم الإرسال',
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('طوارئ - سَنَد'), backgroundColor: Colors.red.shade50),
+      body: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _sent ? Colors.green.shade50 : Colors.red.shade50,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _sent ? 'تم إرسال إشارة الاستغاثة بنجاح!' : 'إرسال التنبيهات خلال $_count ثوانٍ',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _sent ? Colors.green.shade800 : Colors.red.shade800),
+              ),
             ),
+            const SizedBox(height: 18),
+            _stepTile('إشعار أفراد العائلة', steps[0]),
+            _stepTile('مشاركة الموقع الجغرافي', steps[1]),
+            _stepTile('الاتصال بالحماية المدنية (14)', steps[2]),
+            const SizedBox(height: 18),
+            Card(
+              elevation: 2,
+              child: ListTile(
+                leading: const Icon(Icons.location_on, color: Colors.red),
+                title: const Text('الموقع الحالي (محاكاة)'),
+                subtitle: const Text('مستغانم / الجزائر\nتحديث: الآن'),
+                trailing: ElevatedButton.icon(
+                  onPressed: () => _callEmergency(context),
+                  icon: const Icon(Icons.call),
+                  label: const Text('14'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                ),
+              ),
+            ),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.grey.shade800, foregroundColor: Colors.white),
+                child: const Text('إلغاء والرجوع للرئيسية'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stepTile(String label, bool done) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: done ? Colors.green : Colors.grey.shade300,
+        child: Icon(done ? Icons.check : Icons.hourglass_empty, color: done ? Colors.white : Colors.grey),
+      ),
+      title: Text(label, style: TextStyle(fontWeight: done ? FontWeight.bold : FontWeight.normal)),
+    );
+  }
+
+  void _callEmergency(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('الاتصال بالطوارئ'),
+        content: const Text('محاكاة: جاري الاتصال برقم الحماية المدنية (14)...'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))],
+      ),
+    );
+  }
+}
+
+/* ---------------------------
+   7. لوحة العائلة CaregiverDashboard
+   --------------------------- */
+class CaregiverDashboard extends StatelessWidget {
+  const CaregiverDashboard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final visits = AppState.visits.reversed.toList();
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('لوحة العائلة والمراقب')),
+      body: visits.isEmpty
+          ? const Center(
+              child: Text('لا توجد سجلات طوارئ أو زيارات محددة حالياً', style: TextStyle(color: Colors.grey)),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: visits.length,
+              itemBuilder: (_, i) {
+                final v = visits[i];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    leading: const CircleAvatar(backgroundColor: Colors.red, child: Icon(Icons.warning, color: Colors.white)),
+                    title: Text('${v.type} - ${v.elderName}'),
+                    subtitle: Text('التاريخ: ${v.startAt.hour}:${v.startAt.minute} — ${v.startAt.day}/${v.startAt.month}/${v.startAt.year}'),
+                    trailing: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+                      child: Text(v.status, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+/* ---------------------------
+   8. شاشة الأدوية MedsScreen
+   --------------------------- */
+class MedsScreen extends StatelessWidget {
+  const MedsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('تذكير الأدوية')),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: AppState.meds.length,
+        itemBuilder: (_, index) {
+          final med = AppState.meds[index];
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Colors.teal,
+                child: Icon(Icons.medication, color: Colors.white),
+              ),
+              title: Text(med.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              subtitle: Text('الجرعة: ${med.dose}\nالموعد: ${med.time}${med.notes != null ? " (${med.notes})" : ""}'),
+              trailing: IconButton(
+                icon: const Icon(Icons.volume_up, color: Colors.teal, size: 30),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('تشغيل التذكير الصوتي للدواء: ${med.name}')),
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/* ---------------------------
+   9. المساعد الصوتي VoiceAssistantScreen
+   --------------------------- */
+class VoiceAssistantScreen extends StatelessWidget {
+  const VoiceAssistantScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('المساعد الصوتي (مريم)')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircleAvatar(
+              radius: 65,
+              backgroundColor: Colors.teal,
+              child: Icon(Icons.mic, size: 60, color: Colors.white),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'تحدث الآن، أنا أستمع إليك...',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'أمثلة: "اتصل بمريم"، "ما هي أدوية اليوم؟"',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('رجوع'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* ---------------------------
+   10. شاشة الإعدادات SettingsScreen
+   --------------------------- */
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('الإعدادات')),
+      body: ListView(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('اسم المستخدم'),
+            subtitle: Text(AppState.userName ?? 'غير محدد'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.phone),
+            title: const Text('رقم الهاتف للطوارئ'),
+            subtitle: Text(AppState.userPhone ?? 'غير محدد'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('تسجيل الخروج', style: TextStyle(color: Colors.red)),
+            onTap: () {
+              AppState.userName = null;
+              AppState.userPhone = null;
+              Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+            },
           ),
         ],
       ),
     );
   }
 }
+
